@@ -62,6 +62,8 @@ const (
 	Parameters
 	// IntSet is a set of uint64
 	IntSet
+	// FaultSet is the faults generated during PoSt generation
+	FaultSet
 )
 
 func (t Type) String() string {
@@ -108,6 +110,8 @@ func (t Type) String() string {
 		return "[]interface{}"
 	case IntSet:
 		return "types.IntSet"
+	case FaultSet:
+		return "types.FaultSet"
 	default:
 		return "<unknown type>"
 	}
@@ -163,6 +167,8 @@ func (av *Value) String() string {
 		return fmt.Sprint(av.Val.([]interface{}))
 	case IntSet:
 		return av.Val.(types.IntSet).String()
+	case FaultSet:
+		return av.Val.(types.FaultSet).String()
 	default:
 		return "<unknown type>"
 	}
@@ -320,6 +326,12 @@ func (av *Value) Serialize() ([]byte, error) {
 			return nil, &typeError{types.IntSet{}, av.Val}
 		}
 		return cbor.DumpObject(is)
+	case FaultSet:
+		fs, ok := av.Val.(types.FaultSet)
+		if !ok {
+			return nil, &typeError{types.FaultSet{}, av.Val}
+		}
+		return cbor.DumpObject(fs)
 	default:
 		return nil, fmt.Errorf("unrecognized Type: %d", av.Type)
 	}
@@ -375,6 +387,8 @@ func ToValues(i []interface{}) ([]*Value, error) {
 			out = append(out, &Value{Type: Parameters, Val: v})
 		case types.IntSet:
 			out = append(out, &Value{Type: IntSet, Val: v})
+		case types.FaultSet:
+			out = append(out, &Value{Type: FaultSet, Val: v})
 		default:
 			return nil, fmt.Errorf("unsupported type: %T", v)
 		}
@@ -536,6 +550,15 @@ func Deserialize(data []byte, t Type) (*Value, error) {
 			Type: t,
 			Val:  is,
 		}, nil
+	case FaultSet:
+		fs := types.NewFaultSet([]uint64{})
+		if err := cbor.DecodeInto(data, &fs); err != nil {
+			return nil, err
+		}
+		return &Value{
+			Type: t,
+			Val:  fs,
+		}, nil
 	case Invalid:
 		return nil, ErrInvalidType
 	default:
@@ -564,6 +587,7 @@ var typeTable = map[Type]reflect.Type{
 	Predicate:      reflect.TypeOf(&types.Predicate{}),
 	Parameters:     reflect.TypeOf([]interface{}{}),
 	IntSet:         reflect.TypeOf(types.IntSet{}),
+	FaultSet:       reflect.TypeOf(types.FaultSet{}),
 }
 
 // TypeMatches returns whether or not 'val' is the go type expected for the given ABI type
